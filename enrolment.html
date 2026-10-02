@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Velabahleke High School</title>
+  <link rel="stylesheet" href="vb.css" />
+  <style>
+    /* Minimal styling for the form; safe to move into vb.css later */
+    #enrolment-form { max-width: 480px; margin-top: 1rem; }
+    #enrolment-form label { display: block; margin-top: 0.75rem; font-weight: bold; }
+    #enrolment-form input[type="text"],
+    #enrolment-form input[type="email"] {
+      width: 100%; padding: 0.5rem; margin-top: 0.25rem;
+      box-sizing: border-box; font-family: inherit;
+    }
+    #enrolment-form input[type="file"] { margin-top: 0.25rem; }
+    #enrolment-form button {
+      margin-top: 1rem; padding: 0.6rem 1.2rem; cursor: pointer;
+    }
+    #form-status { margin-top: 1rem; font-weight: bold; }
+    #form-status.success { color: green; }
+    #form-status.error { color: red; }
+    #enrolment-form button[disabled] { opacity: 0.6; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <header>
+
+  </header>
+
+    <div id="menu_bar">
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="codeOfConduct.html">Learners Code Of Conduct</a></li>
+          <li><a href="events.html">Events</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <li><a href="enrolment.html">Enrolment</a></li>
+          <li><a href="about.html">About</a></li>
+        </ul>
+    </div>
+
+
+
+  <section class="hero">
+    <form id="enrolment-form">
+    <h2>Grade 8 Enrolment Form</h2>
+
+    <h3>Requirements:</h3>
+    <ul>
+      <li>Copy of the latest school report card e.g. Grade 6 report card.</li>
+      <li>Copy of the unbridged birth certificate.</li>
+      <li>Age- from 12 and 13 years old.</li>
+      <li>Contact details and ID copy of the parent.</li>
+      <li>Feeder school: Isikhwelo considered first.</li>
+    </ul>
+  </br>
+
+    <label for="fullName">Full Names:</label>
+    <input type="text" id="fullName" name="fullName" required></br>
+
+    <label for="ParentName">Parent's Fullnames:</label>
+    <input type="text" id="ParentName" name="ParentName" required></br>
+
+    <label for="PhoneNumber">Phone Number:</label>
+    <input type="text" id="PhoneNumber" name="PhoneNumber" required></br>
+
+    <label for="email">Parent/Guardian Email:</label>
+    <input type="email" id="email" name="email" required></br>
+
+    <label for="report">Upload Latest School Report:</label>
+    <input type="file" id="report" name="report" accept=".pdf,.jpg,.jpeg,.png" required></br>
+
+    <label for="idCopy">Upload Student ID Copy:</label>
+    <input type="file" id="idCopy" name="idCopy" accept=".pdf,.jpg,.jpeg,.png" required></br>
+
+    <button type="submit" id="submit-btn">Submit Enrolment</button>
+    <p id="form-status"></p>
+  </form>
+
+
+  </section>
+
+
+
+  <footer>
+    <div id="footer">
+      <p>&copy; 2025 Velabahleke High School. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Points at the local Flask API during development.
+    // Update this to your real server's URL once deployed.
+    const API_URL = "http://127.0.0.1:5000/api/enrolment";
+
+    const form = document.getElementById("enrolment-form");
+    const statusEl = document.getElementById("form-status");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      statusEl.textContent = "Submitting your application...";
+      statusEl.className = "";
+      submitBtn.disabled = true;
+
+      // FormData automatically picks up both the text fields and the
+      // two uploaded files, and sends everything as
+      // multipart/form-data — exactly what the Flask endpoint expects.
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          statusEl.textContent = "Thank you! Your enrolment application has been submitted.";
+          statusEl.className = "success";
+          form.reset();
+        } else {
+          statusEl.textContent = data.error || "Something went wrong. Please check the form and try again.";
+          statusEl.className = "error";
+        }
+      } catch (err) {
+        statusEl.textContent = "Could not reach the server. Please try again later.";
+        statusEl.className = "error";
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

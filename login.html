@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Login — Velabahleke High School</title>
+  <link rel="stylesheet" href="vb.css" />
+  <style>
+    #login-form { max-width: 400px; margin: 60px auto; }
+    #login-form label { display: block; margin-top: 15px; font-weight: bold; color: #0027C2; }
+    #login-form input {
+      width: 100%; padding: 10px; margin-top: 5px;
+      border: 1px solid #FFD700; border-radius: 4px; font-size: 14px;
+      box-sizing: border-box;
+    }
+    #login-form button {
+      margin-top: 20px; width: 100%; padding: 10px;
+      background-color: #0027C2; color: white; border: none;
+      border-radius: 5px; cursor: pointer; font-weight: bold;
+    }
+    #login-form button:hover { background-color: #001a8f; }
+    #login-status { margin-top: 12px; font-weight: bold; text-align: center; }
+    #login-status.error { color: #b00020; }
+  </style>
+</head>
+<body>
+
+  <header></header>
+
+  <section class="hero">
+    <h2>Staff Login</h2>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required autocomplete="username" />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required autocomplete="current-password" />
+
+      <button type="submit">Log In</button>
+    </form>
+    <p id="login-status"></p>
+  </section>
+
+  <footer>
+    <div id="footer">
+      <p>&copy; 2025 Velabahleke High School. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Update this to your real server's URL once deployed.
+    const API_BASE = "http://127.0.0.1:5000";
+
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const statusEl = document.getElementById("login-status");
+      statusEl.textContent = "Logging in...";
+      statusEl.className = "";
+
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Store the token so dashboard.html can send it with every
+          // request. localStorage keeps it until the browser tab/window
+          // is closed or logout clears it — it is NOT shared with other
+          // people, only this browser on this computer.
+          localStorage.setItem("staff_token", data.token);
+          window.location.href = "dashboard.html";
+        } else {
+          statusEl.textContent = data.error || "Login failed. Please try again.";
+          statusEl.className = "error";
+        }
+      } catch (err) {
+        statusEl.textContent = "Could not reach the server. Please try again later.";
+        statusEl.className = "error";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Staff — Velabahleke High School</title>
+  <link rel="stylesheet" href="vb.css" />
+  <style>
+    .dashboard-warning {
+      max-width: 1000px;
+      margin: 20px auto 0;
+      padding: 12px 20px;
+      background-color: #FFF4CC;
+      border-left: 6px solid #FFD700;
+      border-radius: 6px;
+      color: #333;
+      font-weight: bold;
+    }
+
+    table.dashboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    table.dashboard-table th,
+    table.dashboard-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 14px;
+    }
+
+    table.dashboard-table th {
+      background-color: #0027C2;
+      color: white;
+    }
+
+    .refresh-btn, .delete-btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .refresh-btn {
+      background-color: #0027C2;
+      color: white;
+      margin-top: 15px;
+    }
+    .refresh-btn:hover { background-color: #001a8f; }
+
+    .delete-btn {
+      background-color: #b00020;
+      color: white;
+    }
+    .delete-btn:hover { background-color: #800016; }
+
+    #add-staff-form { max-width: 400px; margin-top: 15px; }
+    #add-staff-form label { display: block; margin-top: 12px; font-weight: bold; color: #0027C2; }
+    #add-staff-form input {
+      width: 100%; padding: 8px; margin-top: 5px;
+      border: 1px solid #FFD700; border-radius: 4px; font-size: 14px;
+      box-sizing: border-box;
+    }
+    #add-staff-status { margin-top: 10px; font-weight: bold; }
+    #add-staff-status.error { color: #b00020; }
+    #add-staff-status.success { color: green; }
+  </style>
+</head>
+<body>
+
+  <header></header>
+
+  <p class="dashboard-warning">
+    ⚠ Staff use only.
+    <a href="dashboard.html">Back to Dashboard</a>
+  </p>
+
+  <section>
+    <h3>Existing Staff Accounts</h3>
+    <table class="dashboard-table" id="staff-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button class="refresh-btn" onclick="loadStaff()">Refresh</button>
+  </section>
+
+  <section>
+    <h3>Add New Staff Account</h3>
+    <form id="add-staff-form">
+      <label for="new-username">Username</label>
+      <input type="text" id="new-username" required />
+
+      <label for="new-password">Password (at least 8 characters)</label>
+      <input type="password" id="new-password" required minlength="8" />
+
+      <button type="submit" class="refresh-btn">Add Account</button>
+    </form>
+    <p id="add-staff-status"></p>
+  </section>
+
+  <footer>
+    <div id="footer">
+      <p>&copy; 2025 Velabahleke High School. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:5000";
+
+    const token = localStorage.getItem("staff_token");
+    if (!token) {
+      window.location.href = "login.html";
+    }
+
+    function authHeaders(extra = {}) {
+      return { "Authorization": `Bearer ${token}`, ...extra };
+    }
+
+    function escapeHtml(value) {
+      const div = document.createElement("div");
+      div.textContent = value ?? "";
+      return div.innerHTML;
+    }
+
+    async function handleUnauthorized(response) {
+      if (response.status === 401) {
+        localStorage.removeItem("staff_token");
+        window.location.href = "login.html";
+        return true;
+      }
+      return false;
+    }
+
+    async function loadStaff() {
+      const tbody = document.querySelector("#staff-table tbody");
+      tbody.innerHTML = "";
+
+      try {
+        const response = await fetch(`${API_BASE}/api/staff`, { headers: authHeaders() });
+        if (await handleUnauthorized(response)) return;
+
+        const data = await response.json();
+        const usernames = data.usernames || [];
+
+        usernames.forEach((username) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${escapeHtml(username)}</td>
+            <td><button class="delete-btn" data-username="${escapeHtml(username)}">Delete</button></td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        tbody.querySelectorAll(".delete-btn").forEach((btn) => {
+          btn.addEventListener("click", () => deleteStaff(btn.dataset.username));
+        });
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="2">Could not load staff accounts. Is the server running?</td></tr>`;
+      }
+    }
+
+    async function deleteStaff(username) {
+      if (!confirm(`Remove staff account "${username}"? This can't be undone.`)) {
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE}/api/staff/${encodeURIComponent(username)}`, {
+          method: "DELETE",
+          headers: authHeaders(),
+        });
+        if (await handleUnauthorized(response)) return;
+
+        const data = await response.json();
+        if (!response.ok) {
+          alert(data.error || "Could not delete that account.");
+          return;
+        }
+        loadStaff();
+      } catch (err) {
+        alert("Could not reach the server.");
+      }
+    }
+
+    document.getElementById("add-staff-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const statusEl = document.getElementById("add-staff-status");
+      statusEl.textContent = "Adding...";
+      statusEl.className = "";
+
+      const username = document.getElementById("new-username").value.trim();
+      const password = document.getElementById("new-password").value;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/staff`, {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ username, password }),
+        });
+        if (await handleUnauthorized(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+          statusEl.textContent = `Staff account "${username}" created.`;
+          statusEl.className = "success";
+          document.getElementById("add-staff-form").reset();
+          loadStaff();
+        } else {
+          statusEl.textContent = data.error || "Could not create that account.";
+          statusEl.className = "error";
+        }
+      } catch (err) {
+        statusEl.textContent = "Could not reach the server. Please try again later.";
+        statusEl.className = "error";
+      }
+    });
+
+    loadStaff();
+  </script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Dashboard — Velabahleke High School</title>
+  <link rel="stylesheet" href="vb.css" />
+  <style>
+    /* Extra styling just for the dashboard's tables — uses the same
+       blue/gold palette as vb.css so it matches the rest of the site. */
+    .dashboard-warning {
+      max-width: 1000px;
+      margin: 20px auto 0;
+      padding: 12px 20px;
+      background-color: #FFF4CC;
+      border-left: 6px solid #FFD700;
+      border-radius: 6px;
+      color: #333;
+      font-weight: bold;
+    }
+
+    .dashboard-table-wrapper {
+      overflow-x: auto; /* keeps wide tables usable on small screens */
+    }
+
+    table.dashboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    table.dashboard-table th,
+    table.dashboard-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 14px;
+    }
+
+    table.dashboard-table th {
+      background-color: #0027C2;
+      color: white;
+    }
+
+    table.dashboard-table tr:hover {
+      background-color: #f9f9f9;
+    }
+
+    table.dashboard-table a {
+      color: #0027C2;
+      font-weight: bold;
+    }
+
+    .refresh-btn {
+      margin-top: 15px;
+      padding: 8px 16px;
+      background-color: #0027C2;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .refresh-btn:hover {
+      background-color: #001a8f;
+    }
+
+    .empty-note {
+      color: #777;
+      font-style: italic;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <header></header>
+
+  <p class="dashboard-warning">
+    ⚠ Staff use only. Do not share this link or your login credentials.
+    <a href="manage_staff.html" style="margin-left: 15px;">Manage Staff Accounts</a>
+    <button class="refresh-btn" style="margin-left: 15px;" onclick="logout()">Log Out</button>
+  </p>
+
+  <section>
+    <h3>Enrolment Applications</h3>
+    <div class="dashboard-table-wrapper">
+      <table class="dashboard-table" id="enrolment-table">
+        <thead>
+          <tr>
+            <th>Full Name</th>
+            <th>Parent Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Report</th>
+            <th>ID Copy</th>
+            <th>Submitted At</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="enrolment-empty" style="display: none;">
+      No enrolment applications yet.
+    </p>
+    <button class="refresh-btn" onclick="loadEnrolments()">Refresh</button>
+  </section>
+
+  <section>
+    <h3>Contact Messages</h3>
+    <div class="dashboard-table-wrapper">
+      <table class="dashboard-table" id="contact-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Subject</th>
+            <th>Message</th>
+            <th>Received At</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="contact-empty" style="display: none;">
+      No contact messages yet.
+    </p>
+    <button class="refresh-btn" onclick="loadContactMessages()">Refresh</button>
+  </section>
+
+  <footer>
+    <div id="footer">
+      <p>&copy; 2025 Velabahleke High School. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Points at the local Flask API during development.
+    // Update this to your real server's URL once deployed
+    // (GitHub Pages cannot run this Flask backend — see notes).
+    const API_BASE = "http://127.0.0.1:5000";
+
+    // Every protected route needs this token in an Authorization header.
+    // It comes from login.html, which saves it here after a successful
+    // login. If there's no token at all, don't even try loading data —
+    // send the user straight to the login page.
+    const token = localStorage.getItem("staff_token");
+    if (!token) {
+      window.location.href = "login.html";
+    }
+
+    function authHeaders() {
+      return { "Authorization": `Bearer ${token}` };
+    }
+
+    function escapeHtml(value) {
+      // Prevents someone's submitted text (e.g. a message containing
+      // "<script>") from being run as HTML when we insert it into the
+      // page. Always escape user-submitted data before inserting it.
+      const div = document.createElement("div");
+      div.textContent = value ?? "";
+      return div.innerHTML;
+    }
+
+    function extractFilename(storedPath) {
+      // Stored paths look like "uploads\\abc123_report.pdf" (Windows)
+      // or "uploads/abc123_report.pdf" (Mac/Linux). Extract just the
+      // filename, since the /uploads/<filename> route only needs that.
+      return storedPath.split(/[\\/]/).pop();
+    }
+
+    async function viewFile(storedPath) {
+      // Plain <a href="..."> links can't carry an Authorization header,
+      // and this route is login-protected — so instead, fetch the file
+      // ourselves (with the header attached), then open the downloaded
+      // bytes as a temporary local URL the browser can display.
+      const filename = extractFilename(storedPath);
+      try {
+        const response = await fetch(`${API_BASE}/uploads/${encodeURIComponent(filename)}`, {
+          headers: authHeaders(),
+        });
+        if (response.status === 401) {
+          alert("Your session has expired. Please log in again.");
+          logout();
+          return;
+        }
+        if (!response.ok) {
+          alert("Could not load that file.");
+          return;
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+      } catch (err) {
+        alert("Could not reach the server to load that file.");
+      }
+    }
+
+    async function handleUnauthorized(response) {
+      // Shared check for every protected fetch below: if the token was
+      // rejected (expired, server restarted and forgot it, etc.), send
+      // the user back to the login page instead of showing empty data.
+      if (response.status === 401) {
+        localStorage.removeItem("staff_token");
+        window.location.href = "login.html";
+        return true;
+      }
+      return false;
+    }
+
+    async function loadEnrolments() {
+      const tbody = document.querySelector("#enrolment-table tbody");
+      const emptyNote = document.getElementById("enrolment-empty");
+      tbody.innerHTML = "";
+
+      try {
+        const response = await fetch(`${API_BASE}/api/enrolment`, { headers: authHeaders() });
+        if (await handleUnauthorized(response)) return;
+
+        const data = await response.json();
+        const enrolments = data.enrolments || [];
+
+        if (enrolments.length === 0) {
+          emptyNote.style.display = "block";
+          return;
+        }
+        emptyNote.style.display = "none";
+
+        enrolments.forEach((entry) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${escapeHtml(entry.full_name)}</td>
+            <td>${escapeHtml(entry.parent_name)}</td>
+            <td>${escapeHtml(entry.phone_number)}</td>
+            <td>${escapeHtml(entry.email)}</td>
+            <td><a href="#" data-path="${escapeHtml(entry.report_path)}" class="view-file-link">View</a></td>
+            <td><a href="#" data-path="${escapeHtml(entry.id_copy_path)}" class="view-file-link">View</a></td>
+            <td>${escapeHtml(entry.submitted_at)}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        // Wire up the "View" links now that they exist in the page.
+        tbody.querySelectorAll(".view-file-link").forEach((link) => {
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            viewFile(link.dataset.path);
+          });
+        });
+      } catch (err) {
+        emptyNote.textContent = "Could not load enrolments. Is the server running?";
+        emptyNote.style.display = "block";
+      }
+    }
+
+    async function loadContactMessages() {
+      const tbody = document.querySelector("#contact-table tbody");
+      const emptyNote = document.getElementById("contact-empty");
+      tbody.innerHTML = "";
+
+      try {
+        const response = await fetch(`${API_BASE}/api/contact`, { headers: authHeaders() });
+        if (await handleUnauthorized(response)) return;
+
+        const data = await response.json();
+        const messages = data.messages || [];
+
+        if (messages.length === 0) {
+          emptyNote.style.display = "block";
+          return;
+        }
+        emptyNote.style.display = "none";
+
+        messages.forEach((entry) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${escapeHtml(entry.name)}</td>
+            <td>${escapeHtml(entry.email)}</td>
+            <td>${escapeHtml(entry.subject)}</td>
+            <td>${escapeHtml(entry.message)}</td>
+            <td>${escapeHtml(entry.received_at)}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (err) {
+        emptyNote.textContent = "Could not load messages. Is the server running?";
+        emptyNote.style.display = "block";
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch(`${API_BASE}/api/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+      } catch (err) {
+        // Even if the logout request fails to reach the server, still
+        // clear the local token and send the user to the login page —
+        // being logged out locally is the more important outcome.
+      }
+      localStorage.removeItem("staff_token");
+      window.location.href = "login.html";
+    }
+
+    // Load both tables as soon as the page opens.
+    loadEnrolments();
+    loadContactMessages();
+  </script>
+</body>
+</html>

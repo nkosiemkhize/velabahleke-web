@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+uploads/
+enrolments.json
+contact_messages.json
+staff_users.json
