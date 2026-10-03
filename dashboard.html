@@ -136,10 +136,8 @@
   </footer>
 
   <script>
-    // Points at the local Flask API during development.
-    // Update this to your real server's URL once deployed
-    // (GitHub Pages cannot run this Flask backend — see notes).
-    const API_BASE = "http://127.0.0.1:5000";
+    // Points at the live Flask API on Render.
+    const API_BASE = "https://velabahleke-api.onrender.com";
 
     // Every protected route needs this token in an Authorization header.
     // It comes from login.html, which saves it here after a successful
