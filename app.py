@@ -21,9 +21,15 @@ to swap for a real database (like SQLite) later.
 HOW TO RUN THIS
 ----------------
 1. Install dependencies:  pip install -r requirements.txt
-2. Run the server:         python app.py
-3. Open contact.html or enrolment.html in a browser and submit a form —
+2. (Optional, for local development) Turn debug mode on:
+   PowerShell:  $env:FLASK_DEBUG="1"
+3. Run the server:         python app.py
+4. Open contact.html or enrolment.html in a browser and submit a form —
    it will POST to this API.
+
+In production (e.g. on Render), this file is run via gunicorn instead
+of "python app.py" directly — see requirements.txt and the deployment
+notes for this project.
 
 Both frontend pages expect this server to be running at
 http://127.0.0.1:5000 — see the API_URL constant in each file's <script>.
@@ -685,4 +691,17 @@ def delete_staff(username):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Render (and most hosting platforms) assign a port dynamically via
+    # the PORT environment variable, and require the app to listen on
+    # 0.0.0.0 (all network interfaces) rather than only 127.0.0.1
+    # (localhost-only, which is fine for local testing but unreachable
+    # from the internet once deployed).
+    #
+    # debug=True is deliberately OFF by default now. Debug mode shows
+    # detailed error pages including parts of your source code if
+    # something crashes — fine on your own machine, a real risk on a
+    # public server. Set the FLASK_DEBUG environment variable to "1"
+    # locally if you want debug mode back for local development.
+    port = int(os.environ.get("PORT", 5000))
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
